@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"time"
 
 	"github.com/xitongsys/parquet-go/parquet"
 )
@@ -78,7 +79,10 @@ func ParquetTypeToGoReflectType(pT *parquet.Type, rT *parquet.FieldRepetitionTyp
 }
 
 //Scan a string to parquet value; length and scale just for decimal
-func StrToParquetType(s string, pT *parquet.Type, cT *parquet.ConvertedType, length int, scale int) (interface{}, error) {
+func StrToParquetType(s string, pT *parquet.Type, cT *parquet.ConvertedType, length int, scale int) (
+	interface{},
+	error,
+) {
 	if cT == nil {
 		if *pT == parquet.Type_BOOLEAN {
 			var v bool
@@ -164,8 +168,13 @@ func StrToParquetType(s string, pT *parquet.Type, cT *parquet.ConvertedType, len
 	} else if *cT == parquet.ConvertedType_INT_64 ||
 		*cT == parquet.ConvertedType_TIME_MICROS || *cT == parquet.ConvertedType_TIMESTAMP_MICROS || *cT == parquet.ConvertedType_TIMESTAMP_MILLIS {
 		var v int64
-		_, err := fmt.Sscanf(s, "%d", &v)
-		return v, err
+		t, err := time.Parse("2006-01-02T15:04:05.99Z", s)
+
+		if err != nil {
+			return v, err
+		}
+		v = t.Unix() * 1000
+		return v, nil
 
 	} else if *cT == parquet.ConvertedType_INTERVAL {
 		res := StrIntToBinary(s, "LittleEndian", 12, false)
@@ -329,7 +338,13 @@ func StrIntToBinary(num string, order string, length int, signed bool) string {
 	return string(bs)
 }
 
-func JSONTypeToParquetType(val reflect.Value, pT *parquet.Type, cT *parquet.ConvertedType, length int, scale int) (interface{}, error) {
+func JSONTypeToParquetType(
+	val reflect.Value,
+	pT *parquet.Type,
+	cT *parquet.ConvertedType,
+	length int,
+	scale int,
+) (interface{}, error) {
 	if val.Type().Kind() == reflect.Interface && val.IsNil() {
 		return nil, nil
 	}
